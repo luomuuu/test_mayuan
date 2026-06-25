@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import re
 import random
 import sys
@@ -14,39 +15,34 @@ QUESTION_TYPES = {
 
 
 def load_questions() -> tuple:
-    with open(r"马克思主义基本原理题库.txt", "r", encoding="utf-8") as f:
-        text = f.read()
+    with open(r"马克思主义基本原理2026.7复习.doc", "rb") as f:
+        raw = f.read()
+    html = raw.decode("gbk", errors="replace")
 
-    text = re.sub(r"\r\n", "\n", text)
+    m = re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL)
+    if not m:
+        raise Exception("无法解析文档")
+    body = m.group(1)
+    text = re.sub(r"<[^>]+>", "", body)
+    text = re.sub(r"&nbsp;", " ", text)
+    text = re.sub(r"&lt;", "<", text)
+    text = re.sub(r"&gt;", ">", text)
+    text = re.sub(r"&amp;", "&", text)
     text = re.sub(r"[ \t]+\n", "\n", text)
     text = re.sub(r"\n[ \t]+", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
 
     lines = text.splitlines()
-
     q_re = re.compile(r"^(\d+)[\u3001\uff0e.]\s*(.*)")
     a_re = re.compile(r"答案[\uff1a:]\s*(.+?)$")
     opt_re = re.compile(r"^([A-Da-d])[\u3001\uff0e.]\s*(.*)")
 
     singles, multis, judges = [], [], []
     cur_num, cur_q, cur_opts, cur_ans = None, None, [], None
-    section = "choice"
 
     for line in lines:
         s = line.strip()
         if not s:
-            continue
-
-        if s.startswith("一."):
-            section = "choice"
-            continue
-        if s.startswith("二."):
-            section = "judge"
-            _save(cur_num, cur_q, cur_opts, cur_ans, singles, multis, judges)
-            cur_num, cur_q, cur_opts, cur_ans = None, None, [], None
-            continue
-
-        if s.startswith("解析"):
             continue
 
         qm = q_re.match(s)
@@ -57,13 +53,16 @@ def load_questions() -> tuple:
             cur_opts, cur_ans = [], None
             continue
 
-        am = a_re.match(s)
+        am = ans_re.match(s)
         if am:
             cur_ans = am.group(1).strip()
             continue
 
+        if s.startswith("解析"):
+            continue
+
         om = opt_re.match(s)
-        if om and section == "choice":
+        if om:
             cur_opts.append(s)
         elif cur_q and section == "choice":
             cur_q += " " + s
@@ -133,7 +132,7 @@ class QuizApp(tk.Tk):
         title_label = ttk.Label(
             self.main_frame, 
             text="马原复习考试系统",
-            font=("微软雅黑", 22, "bold"),
+            font=("", 22, "bold"),
             foreground="#1a5fb4"
         )
         title_label.pack(pady=(0, 40))
@@ -158,8 +157,8 @@ class QuizApp(tk.Tk):
         self.start_btn.pack(pady=(30, 0))
         
         style = ttk.Style()
-        style.configure("Large.TButton", font=("微软雅黑", 14), padding=10)
-        style.configure("Exit.TButton", font=("微软雅黑", 12), padding=5, foreground="#e74c3c")
+        style.configure("Large.TButton", font=("", 14), padding=10)
+        style.configure("Exit.TButton", font=("", 12), padding=5, foreground="#e74c3c")
 
     def load_and_show_stats(self):
         try:
@@ -187,7 +186,7 @@ class QuizApp(tk.Tk):
             stats_label = ttk.Label(
                 self.stats_frame,
                 text=stats_text,
-                font=("微软雅黑", 12),
+                font=("", 12),
                 justify=tk.LEFT
             )
             stats_label.pack(pady=20)
@@ -222,7 +221,7 @@ class QuizApp(tk.Tk):
         self.progress_label = ttk.Label(
             top_bar,
             text="",
-            font=("微软雅黑", 14, "bold")
+            font=("", 14, "bold")
         )
         self.progress_label.pack(side=tk.LEFT)
         
@@ -232,7 +231,7 @@ class QuizApp(tk.Tk):
         self.type_label = ttk.Label(
             right_frame,
             text="",
-            font=("微软雅黑", 12),
+            font=("", 12),
             foreground="#1a5fb4"
         )
         self.type_label.pack(side=tk.LEFT, padx=(0, 20))
@@ -248,7 +247,7 @@ class QuizApp(tk.Tk):
         self.question_label = ttk.Label(
             self.quiz_frame,
             text="",
-            font=("微软雅黑", 13),
+            font=("", 13),
             wraplength=820,
             justify=tk.LEFT
         )
@@ -263,7 +262,7 @@ class QuizApp(tk.Tk):
         self.feedback_label = ttk.Label(
             bottom_bar,
             text="",
-            font=("微软雅黑", 12)
+            font=("", 12)
         )
         self.feedback_label.pack(side=tk.LEFT, padx=(0, 20))
         
@@ -382,8 +381,8 @@ class QuizApp(tk.Tk):
             self.show_feedback(self.current_index)
         
         style = ttk.Style()
-        style.configure("Quiz.TRadiobutton", font=("微软雅黑", 12))
-        style.configure("Quiz.TCheckbutton", font=("微软雅黑", 12))
+        style.configure("Quiz.TRadiobutton", font=("", 12))
+        style.configure("Quiz.TCheckbutton", font=("", 12))
     
     def show_feedback(self, index):
         q = self.questions[index]
@@ -468,7 +467,7 @@ class QuizApp(tk.Tk):
         title_label = ttk.Label(
             self.result_frame,
             text="考试结束！",
-            font=("微软雅黑", 24, "bold"),
+            font=("", 24, "bold"),
             foreground="#1a5fb4"
         )
         title_label.pack(pady=(0, 30))
@@ -488,7 +487,7 @@ class QuizApp(tk.Tk):
         result_label = ttk.Label(
             self.result_frame,
             text=result_text,
-            font=("微软雅黑", 16),
+            font=("", 16),
             justify=tk.LEFT
         )
         result_label.pack(pady=20)
@@ -506,7 +505,7 @@ class QuizApp(tk.Tk):
         grade_label = ttk.Label(
             self.result_frame,
             text=grade,
-            font=("微软雅黑", 18, "bold"),
+            font=("", 18, "bold"),
             foreground=color
         )
         grade_label.pack(pady=20)
@@ -540,5 +539,9 @@ class QuizApp(tk.Tk):
 
 
 if __name__ == "__main__":
-    app = QuizApp()
-    app.mainloop()
+    try:
+        app = QuizApp()
+        app.mainloop()
+    except Exception as e:
+        import traceback
+        messagebox.showerror("程序异常", f"发生未预期的错误：\n{traceback.format_exc()}")
