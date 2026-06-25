@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import re
 import random
 import sys
@@ -12,37 +13,31 @@ QUESTION_TYPES = {
 
 
 def load_questions() -> tuple:
-    with open(r"马克思主义基本原理2026.7复习.doc", "rb") as f:
-        raw = f.read()
-    html = raw.decode("gbk", errors="replace")
-
-    m = re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL)
-    if not m:
-        raise Exception("\u65e0\u6cd5\u89e3\u6790\u6587\u6863")
-    body = m.group(1)
-    text = re.sub(r"<[^>]+>", "", body)
-    text = re.sub(r"&nbsp;", " ", text)
-    text = re.sub(r"&lt;", "<", text)
-    text = re.sub(r"&gt;", ">", text)
-    text = re.sub(r"&amp;", "&", text)
-    text = re.sub(r"[ \t]+\n", "\n", text)
-    text = re.sub(r"\n[ \t]+", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-
-    lines = text.splitlines()
-    q_re = re.compile(r"^(\d+)[\u3001\uff0e.]\s*(.*)")
-    a_re = re.compile(r"\u7b54\u6848[\uff1a:]\s*(.+?)$")
-    opt_re = re.compile(r"^([A-Da-d])[\u3001\uff0e.]\s*(.*)")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    txt_path = os.path.join(script_dir, "马克思主义基本原理题库.txt")
+    with open(txt_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
 
     singles, multis, judges = [], [], []
     cur_num, cur_q, cur_opts, cur_ans = None, None, [], None
+    cur_section = None
+
+    q_num_re = re.compile(r"^(\d+)\.\s+(.*)")
+    ans_re = re.compile(r"^答案[：:]\s*(.+)$")
+    opt_re = re.compile(r"^([A-D])[、．.]\s*(.*)")
+    section_re = re.compile(r"^[一二三四五六七八九十]+\.(.+)")
 
     for line in lines:
         s = line.strip()
         if not s:
             continue
 
-        qm = q_re.match(s)
+        section_m = section_re.match(s)
+        if section_m:
+            cur_section = section_m.group(1)
+            continue
+
+        qm = q_num_re.match(s)
         if qm:
             _save(cur_num, cur_q, cur_opts, cur_ans, singles, multis, judges)
             cur_num = int(qm.group(1))
@@ -50,13 +45,16 @@ def load_questions() -> tuple:
             cur_opts, cur_ans = [], None
             continue
 
-        am = a_re.match(s)
+        am = ans_re.match(s)
         if am:
             cur_ans = am.group(1).strip()
             continue
 
+        if s.startswith("解析"):
+            continue
+
         om = opt_re.match(s)
-        if om:
+        if om and cur_section == "选择题":
             cur_opts.append(s)
         elif cur_q:
             cur_q += " " + s
@@ -135,7 +133,13 @@ def run(questions):
                 print("\n\u9000\u51fa\u3002")
                 sys.exit(0)
 
-        ok = check(ans, q["answer"])
+        if tname == "\u5224\u65ad\u9898":
+            judge_map = {"A": "\u6b63\u786e", "B": "\u9519\u8bef", "a": "\u6b63\u786e", "b": "\u9519\u8bef"}
+            mapped = judge_map.get(ans, ans)
+        else:
+            mapped = ans
+
+        ok = check(mapped, q["answer"])
         if ok:
             print("  [OK] \u56de\u7b54\u6b63\u786e\uff01")
             correct += 1
@@ -147,7 +151,8 @@ def run(questions):
     print("\u8003\u8bd5\u7ed3\u675f\uff01")
     print("\u603b\u9898\u6570: " + str(total))
     print("\u6b63\u786e\u6570: " + str(correct))
-    print("\u6b63\u786e\u7387: " + f"{correct / total * 100:.1f}%")
+    if total > 0:
+        print("\u6b63\u786e\u7387: " + f"{correct / total * 100:.1f}%")
     input("\n\u6309\u56de\u8f66\u952e\u9000\u51fa...")
 
 
