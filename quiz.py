@@ -12,7 +12,7 @@ QUESTION_TYPES = {
 
 
 def load_questions() -> tuple:
-    with open(r"马克思主义基本原理2026.7复习.doc", "rb") as f:
+    with open(r"马克思主义基本原理题库.txt", "rb") as f:
         raw = f.read()
     html = raw.decode("gbk", errors="replace")
 

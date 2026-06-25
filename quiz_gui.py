@@ -14,41 +14,46 @@ QUESTION_TYPES = {
 
 
 def load_questions() -> tuple:
-    with open(r"马克思主义基本原理2026.7复习.doc", "rb") as f:
-        raw = f.read()
-    html = raw.decode("gbk", errors="replace")
+    with open(r"马克思主义基本原理题库.txt", "r", encoding="utf-8") as f:
+        text = f.read()
 
-    m = re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL)
-    if not m:
-        raise Exception("无法解析文档")
-    body = m.group(1)
-    text = re.sub(r"<[^>]+>", "", body)
-    text = re.sub(r"&nbsp;", " ", text)
-    text = re.sub(r"&lt;", "<", text)
-    text = re.sub(r"&gt;", ">", text)
-    text = re.sub(r"&amp;", "&", text)
+    text = re.sub(r"\r\n", "\n", text)
     text = re.sub(r"[ \t]+\n", "\n", text)
     text = re.sub(r"\n[ \t]+", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
 
     lines = text.splitlines()
+
     q_re = re.compile(r"^(\d+)[\u3001\uff0e.]\s*(.*)")
     a_re = re.compile(r"答案[\uff1a:]\s*(.+?)$")
     opt_re = re.compile(r"^([A-Da-d])[\u3001\uff0e.]\s*(.*)")
 
     singles, multis, judges = [], [], []
     cur_num, cur_q, cur_opts, cur_ans = None, None, [], None
+    section = "choice"
 
     for line in lines:
         s = line.strip()
         if not s:
             continue
 
+        if s.startswith("一."):
+            section = "choice"
+            continue
+        if s.startswith("二."):
+            section = "judge"
+            _save(cur_num, cur_q, cur_opts, cur_ans, singles, multis, judges)
+            cur_num, cur_q, cur_opts, cur_ans = None, None, [], None
+            continue
+
+        if s.startswith("解析"):
+            continue
+
         qm = q_re.match(s)
         if qm:
             _save(cur_num, cur_q, cur_opts, cur_ans, singles, multis, judges)
             cur_num = int(qm.group(1))
-            cur_q = qm.group(2)
+            cur_q = qm.group(2).rstrip("()（）")
             cur_opts, cur_ans = [], None
             continue
 
@@ -58,9 +63,9 @@ def load_questions() -> tuple:
             continue
 
         om = opt_re.match(s)
-        if om:
+        if om and section == "choice":
             cur_opts.append(s)
-        elif cur_q:
+        elif cur_q and section == "choice":
             cur_q += " " + s
 
     _save(cur_num, cur_q, cur_opts, cur_ans, singles, multis, judges)
