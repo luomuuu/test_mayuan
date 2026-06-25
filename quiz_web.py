@@ -192,6 +192,7 @@ h1 { text-align:center; color:#1a5fb4; font-size:26px; margin-bottom:32px; }
         <div class="feedback" id="feedback"></div>
         <div class="nav-buttons">
           <button class="btn btn-outline" id="prevBtn" onclick="prevQuestion()">上一题</button>
+          <button class="btn btn-outline" id="nextBtn" onclick="nextQuestion()">下一题</button>
           <button class="btn btn-danger" onclick="submitExam()">交卷</button>
         </div>
       </div>
@@ -310,24 +311,34 @@ function renderQuestion() {
   currentSelection = saved ? saved.answer : null;
 
   document.getElementById('prevBtn').style.visibility = currentIndex > 0 ? 'visible' : 'hidden';
+  const nextBtn = document.getElementById('nextBtn');
+  if (nextBtn) {
+    nextBtn.textContent = currentIndex < total - 1 ? '下一题' : '已是最后一题';
+    nextBtn.style.visibility = currentIndex < total - 1 ? 'visible' : 'hidden';
+  }
 
   const area = document.getElementById('optionsArea');
   area.innerHTML = '';
 
+  const isSubmitted = saved !== null;
+  const isLocked = isSubmitted || examSubmitted;
+
   if (isJudge) {
     ['正确', '错误'].forEach((text, i) => {
       const label = document.createElement('label');
-      label.className = 'option' + (currentSelection === text ? ' selected' : '') + (saved ? ' locked' : '');
+      label.className = 'option' + (currentSelection === text ? ' selected' : '') + (isLocked ? ' locked' : '');
       const radio = document.createElement('input');
       radio.type = 'radio'; radio.name = 'opt'; radio.value = text;
       radio.checked = currentSelection === text;
-      radio.disabled = !!saved;
-      radio.onchange = () => {
-        currentSelection = text;
-        document.querySelectorAll('#optionsArea .option').forEach(o => o.classList.remove('selected'));
-        label.classList.add('selected');
-        onOptionSelected();
-      };
+      radio.disabled = isLocked;
+      if (!isLocked) {
+        radio.onchange = () => {
+          currentSelection = text;
+          document.querySelectorAll('#optionsArea .option').forEach(o => o.classList.remove('selected'));
+          label.classList.add('selected');
+          onOptionSelected();
+        };
+      }
       label.appendChild(radio);
       label.appendChild(document.createTextNode(`${'AB'[i]}. ${text}`));
       area.appendChild(label);
@@ -339,35 +350,39 @@ function renderQuestion() {
       if (!m) return;
       const letter = m[1], text = m[2];
       const label = document.createElement('label');
-      label.className = 'option' + (selectedSet.has(letter) ? ' selected' : '') + (saved ? ' locked' : '');
+      label.className = 'option' + (selectedSet.has(letter) ? ' selected' : '') + (isLocked ? ' locked' : '');
       const cb = document.createElement('input');
       cb.type = 'checkbox'; cb.value = letter;
       cb.checked = selectedSet.has(letter);
-      cb.disabled = !!saved;
-      cb.onchange = () => {
-        if (cb.checked) selectedSet.add(letter);
-        else selectedSet.delete(letter);
-        document.querySelectorAll('#optionsArea .option').forEach(o => o.classList.remove('selected'));
-        document.querySelectorAll('#optionsArea input:checked').forEach(inp => inp.closest('.option').classList.add('selected'));
-      };
+      cb.disabled = isLocked;
+      if (!isLocked) {
+        cb.onchange = () => {
+          if (cb.checked) selectedSet.add(letter);
+          else selectedSet.delete(letter);
+          document.querySelectorAll('#optionsArea .option').forEach(o => o.classList.remove('selected'));
+          document.querySelectorAll('#optionsArea input:checked').forEach(inp => inp.closest('.option').classList.add('selected'));
+        };
+      }
       label.appendChild(cb);
       label.appendChild(document.createTextNode(opt));
       area.appendChild(label);
     });
-    if (!saved) {
+    if (!isLocked) {
       const confirmBtn = document.createElement('button');
       confirmBtn.className = 'btn btn-primary';
-      confirmBtn.textContent = '确认多选答案';
-      confirmBtn.style.marginTop = '12px';
-      confirmBtn.style.padding = '10px 24px';
-      confirmBtn.style.fontSize = '14px';
+      confirmBtn.textContent = '确认答案';
+      confirmBtn.style.marginTop = '16px';
+      confirmBtn.style.padding = '10px 32px';
+      confirmBtn.style.fontSize = '15px';
       confirmBtn.onclick = () => {
         const s = new Set();
         document.querySelectorAll('#optionsArea input:checked').forEach(cb => s.add(cb.value));
-        if (s.size > 0) {
-          currentSelection = [...s].sort().join('');
-          onOptionSelected();
+        if (s.size === 0) {
+          alert('请至少选择一个选项');
+          return;
         }
+        currentSelection = [...s].sort().join('');
+        onOptionSelected();
       };
       area.appendChild(confirmBtn);
     }
@@ -377,24 +392,26 @@ function renderQuestion() {
       if (!m) return;
       const letter = m[1], text = m[2];
       const label = document.createElement('label');
-      label.className = 'option' + (currentSelection === letter ? ' selected' : '') + (saved ? ' locked' : '');
+      label.className = 'option' + (currentSelection === letter ? ' selected' : '') + (isLocked ? ' locked' : '');
       const radio = document.createElement('input');
       radio.type = 'radio'; radio.name = 'opt'; radio.value = letter;
       radio.checked = currentSelection === letter;
-      radio.disabled = !!saved;
-      radio.onchange = () => {
-        currentSelection = letter;
-        document.querySelectorAll('#optionsArea .option').forEach(o => o.classList.remove('selected'));
-        label.classList.add('selected');
-        onOptionSelected();
-      };
+      radio.disabled = isLocked;
+      if (!isLocked) {
+        radio.onchange = () => {
+          currentSelection = letter;
+          document.querySelectorAll('#optionsArea .option').forEach(o => o.classList.remove('selected'));
+          label.classList.add('selected');
+          onOptionSelected();
+        };
+      }
       label.appendChild(radio);
       label.appendChild(document.createTextNode(opt));
       area.appendChild(label);
     });
   }
 
-  if (examSubmitted && saved) {
+  if (saved) {
     showFeedback();
   }
 
@@ -436,9 +453,33 @@ function renderAnswerCard() {
 }
 
 function onOptionSelected() {
-  if (!currentSelection || examSubmitted) return;
+  if (examSubmitted) return;
+  const q = quizQuestions[currentIndex];
+  const isJudge = q.answer === '正确' || q.answer === '错误';
+  const isMulti = q.answer.length > 1 && !isJudge;
 
-  submitted[currentIndex] = {answer: currentSelection};
+  let userAnswer;
+  if (isJudge) {
+    const checked = document.querySelector('#optionsArea input:checked');
+    userAnswer = checked ? checked.value : null;
+  } else if (isMulti) {
+    const s = new Set();
+    document.querySelectorAll('#optionsArea input:checked').forEach(cb => s.add(cb.value));
+    userAnswer = s.size > 0 ? [...s].sort().join('') : null;
+  } else {
+    const checked = document.querySelector('#optionsArea input:checked');
+    userAnswer = checked ? checked.value : null;
+  }
+
+  if (!userAnswer) return;
+
+  const isCorrect = check(userAnswer, q.answer);
+  submitted[currentIndex] = {
+    answer: userAnswer,
+    correct: isCorrect
+  };
+
+  showFeedback();
   renderAnswerCard();
 
   if (currentIndex < quizQuestions.length - 1) {
@@ -446,14 +487,54 @@ function onOptionSelected() {
       currentIndex++;
       currentSelection = null;
       renderQuestion();
-    }, 600);
+    }, 1200);
   } else {
     setTimeout(() => {
       if (confirm((isWrongQuiz ? '错题练习' : '考试') + '已完成，确认交卷？')) {
         examSubmitted = true;
         showResult();
       }
-    }, 600);
+    }, 1200);
+  }
+}
+
+function submitCurrentAnswer() {
+  if (examSubmitted) return;
+  const q = quizQuestions[currentIndex];
+  const isJudge = q.answer === '正确' || q.answer === '错误';
+  const isMulti = q.answer.length > 1 && !isJudge;
+
+  let userAnswer;
+  if (isJudge) {
+    const checked = document.querySelector('#optionsArea input:checked');
+    userAnswer = checked ? checked.value : null;
+  } else if (isMulti) {
+    const s = new Set();
+    document.querySelectorAll('#optionsArea input:checked').forEach(cb => s.add(cb.value));
+    userAnswer = s.size > 0 ? [...s].sort().join('') : null;
+  } else {
+    const checked = document.querySelector('#optionsArea input:checked');
+    userAnswer = checked ? checked.value : null;
+  }
+
+  if (!userAnswer) return;
+
+  const isCorrect = check(userAnswer, q.answer);
+
+  submitted[currentIndex] = {
+    answer: userAnswer,
+    correct: isCorrect
+  };
+
+  showFeedback();
+  renderAnswerCard();
+}
+
+function nextQuestion() {
+  if (currentIndex < quizQuestions.length - 1) {
+    currentIndex++;
+    currentSelection = submitted[currentIndex] ? submitted[currentIndex].answer : null;
+    renderQuestion();
   }
 }
 

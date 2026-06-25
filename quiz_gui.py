@@ -15,37 +15,31 @@ QUESTION_TYPES = {
 
 
 def load_questions() -> tuple:
-    with open(r"马克思主义基本原理2026.7复习.doc", "rb") as f:
-        raw = f.read()
-    html = raw.decode("gbk", errors="replace")
-
-    m = re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL)
-    if not m:
-        raise Exception("无法解析文档")
-    body = m.group(1)
-    text = re.sub(r"<[^>]+>", "", body)
-    text = re.sub(r"&nbsp;", " ", text)
-    text = re.sub(r"&lt;", "<", text)
-    text = re.sub(r"&gt;", ">", text)
-    text = re.sub(r"&amp;", "&", text)
-    text = re.sub(r"[ \t]+\n", "\n", text)
-    text = re.sub(r"\n[ \t]+", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-
-    lines = text.splitlines()
-    q_re = re.compile(r"^(\d+)[\u3001\uff0e.]\s*(.*)")
-    a_re = re.compile(r"答案[\uff1a:]\s*(.+?)$")
-    opt_re = re.compile(r"^([A-Da-d])[\u3001\uff0e.]\s*(.*)")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    txt_path = os.path.join(script_dir, "马克思主义基本原理题库.txt")
+    with open(txt_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
 
     singles, multis, judges = [], [], []
     cur_num, cur_q, cur_opts, cur_ans = None, None, [], None
+    cur_section = None
+
+    q_num_re = re.compile(r"^(\d+)\.\s+(.*)")
+    ans_re = re.compile(r"^答案[：:]\s*(.+)$")
+    opt_re = re.compile(r"^([A-D])[、．.]\s*(.*)")
+    section_re = re.compile(r"^[一二三四五六七八九十]+\.(.+)")
 
     for line in lines:
         s = line.strip()
         if not s:
             continue
 
-        qm = q_re.match(s)
+        section_m = section_re.match(s)
+        if section_m:
+            cur_section = section_m.group(1)
+            continue
+
+        qm = q_num_re.match(s)
         if qm:
             _save(cur_num, cur_q, cur_opts, cur_ans, singles, multis, judges)
             cur_num = int(qm.group(1))
@@ -62,9 +56,9 @@ def load_questions() -> tuple:
             continue
 
         om = opt_re.match(s)
-        if om:
+        if om and cur_section == "选择题":
             cur_opts.append(s)
-        elif cur_q and section == "choice":
+        elif cur_q and cur_section == "选择题":
             cur_q += " " + s
 
     _save(cur_num, cur_q, cur_opts, cur_ans, singles, multis, judges)
@@ -121,9 +115,17 @@ class QuizApp(tk.Tk):
         self.questions = []
         self.current_index = 0
         self.correct_count = 0
-        self.user_answers = []
+        self.submitted_answers = []
         
+        self._setup_styles()
         self.create_main_frame()
+
+    def _setup_styles(self):
+        style = ttk.Style()
+        style.configure("Large.TButton", font=("", 14), padding=10)
+        style.configure("Exit.TButton", font=("", 12), padding=5, foreground="#e74c3c")
+        style.configure("Quiz.TRadiobutton", font=("", 12))
+        style.configure("Quiz.TCheckbutton", font=("", 12))
 
     def create_main_frame(self):
         self.main_frame = ttk.Frame(self, padding="30")
@@ -379,10 +381,6 @@ class QuizApp(tk.Tk):
         
         if is_submitted:
             self.show_feedback(self.current_index)
-        
-        style = ttk.Style()
-        style.configure("Quiz.TRadiobutton", font=("", 12))
-        style.configure("Quiz.TCheckbutton", font=("", 12))
     
     def show_feedback(self, index):
         q = self.questions[index]
